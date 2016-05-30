@@ -1,0 +1,46 @@
+<?php
+
+/**
+ * @file
+ * Install file for the menu_item_visibility module.
+ */
+
+/**
+ * Implements hook_schema().
+ */
+function menu_item_visibility_schema() {
+    $schema = array();
+
+    $schema['menu_item_visibility_pages'] = array(
+        'description' => 'Menu item visibility by page',
+        'fields' => array(
+            'mlid' => array(
+                'type' => 'int',
+                'unsigned' => TRUE,
+                'not null' => true,
+                'description' => "The menu link's ID from {menu_links}.mlid",
+            ),
+            'visibility' => array(
+                'type' => 'int',
+                'not null' => true,
+                'default' => 0,
+                'size' => 'tiny',
+                'description' => 'Flag to indicate how to show menu item on pages. (0 = Show on all pages except listed pages, 1 = Show only on listed pages)',
+            ),
+            'pages' => array(
+                'type' => 'text',
+                'not null' => true,
+                'description' => 'Contains a list of paths on which to include/exclude the menu item, depending on "visibility" setting.',
+            ),
+        ),
+        'primary key' => array('mlid'),
+        'foreign keys' => array(
+            'menu_links' => array(
+                'table' => 'menu_links',
+                'columns' => array('mlid' => 'mlid'),
+            ),
+        ),
+    );
+
+    return $schema;
+}

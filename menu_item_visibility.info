@@ -1,0 +1,9 @@
+name = Menu item visibility
+description = Module for controlling menu item visibility
+core = "7.x"
+package = user interface
+php = 5.5
+
+dependencied[] = menu
+
+version = "7.x-1.0"

@@ -1,0 +1,172 @@
+<?php
+
+/**
+ * @file
+ * Module file for the menu_item_visibility module.
+ */
+
+/**
+ * Implements hook_form_alter().
+ */
+function menu_item_visibility_form_menu_edit_item_alter(&$form, $form_state, $form_id) {
+    if (isset($form['mlid']['#value']) && is_numeric($form['mlid']['#value'])) {
+        $menuItemVisibility = db_select('menu_item_visibility_pages', 'mivp')
+            ->fields('mivp', array('visibility', 'pages'))
+            ->condition('mivp.mlid', $form['mlid']['#value'])
+            ->execute()
+            ->fetchAssoc();
+    }
+
+    $form['menu_item_visibility'] = array(
+        '#type' => 'vertical_tabs',
+    );
+
+    $form['menu_item_visibility']['path'] = array(
+        '#type' => 'fieldset',
+        '#title' => t('Pages'),
+        '#collapsible' => TRUE,
+        '#collapsed' => TRUE,
+        '#group' => 'menu_item_visibility',
+        '#weight' => 0,
+    );
+
+    $form['menu_item_visibility']['path']['visibility'] = array(
+        '#type' => 'radios',
+        '#title' => t('Show menu item on specific pages'),
+        '#options' => array(
+            0 => t('All pages except those listed'),
+            1 => t('Only the listed pages'),
+        ),
+        '#default_value' => (isset($menuItemVisibility['visibility']) ? $menuItemVisibility['visibility'] : 0),
+    );
+
+    $form['menu_item_visibility']['path']['pages'] = array(
+        '#type' => 'textarea',
+        '#title' => t('Pages'),
+        '#default_value' => (isset($menuItemVisibility['pages']) ? $menuItemVisibility['pages'] : ''),
+        '#description' => t("Specify pages by using their paths. Enter one path per line. The '*' character is a wildcard. Example paths are %blog for the blog page and %blog-wildcard for every personal blog. %front is the front page.", array('%blog' => 'blog', '%blog-wildcard' => 'blog/*', '%front' => '<front>')),
+    );
+
+    $form['#submit'][] = 'menu_item_visibility_form_submit';
+}
+
+/**
+ * Process the submitted form.
+ */
+function menu_item_visibility_form_submit($form, &$form_state) {
+    if (isset($form_state['values']['mlid']) && $form_state['values']['mlid']) {
+        $menuItemVisibilityID = db_select('menu_item_visibility_pages', 'mivp')
+            ->fields('mivp', array('mlid'))
+            ->condition('mivp.mlid', $form_state['values']['mlid'])
+            ->execute()
+            ->fetchField();
+
+        if ($menuItemVisibilityID) {
+            db_update('menu_item_visibility_pages')
+                ->fields(array(
+                    'visibility' => $form_state['values']['visibility'],
+                    'pages' => $form_state['values']['pages'],
+                ))
+                ->condition('mlid', $menuItemVisibilityID)
+                ->execute();
+        } else {
+            db_insert('menu_item_visibility_pages')
+                ->fields(array(
+                    'mlid' => $form_state['values']['mlid'],
+                    'visibility' => $form_state['values']['visibility'],
+                    'pages' => $form_state['values']['pages'],
+                ))
+                ->execute();
+        }
+    }
+}
+
+/**
+ * Implements hook_menu_link_alter().
+ */
+function menu_item_visibility_menu_link_alter(&$item) {
+    $item['options']['alter'] = true;
+
+    // Because menu_link_save() may skip calling hook_menu_link_update(), we need to force it to be invoked. See http://drupal.org/node/1013856.
+    if (!empty($item['mlid'])) {
+        menu_item_visibility_menu_link_update($item);
+    }
+}
+
+/**
+ * Implements hook_translated_menu_link_alter().
+ */
+function menu_item_visibility_translated_menu_link_alter(&$item, $map) {
+    if (!empty($item['access'])) {
+        // Menu administrators can see all links.
+        if (strpos(current_path(), 'admin/structure/menu/manage/' . $item['menu_name']) === 0 && user_access('administer menu')) {
+            return;
+        }
+
+        $menuItemVisibility = db_select('menu_item_visibility_pages', 'mivp')
+            ->fields('mivp', array('visibility', 'pages'))
+            ->condition('mivp.mlid', $item['mlid'])
+            ->execute()
+            ->fetchAssoc();
+
+        if ($menuItemVisibility) {
+            $visibleMenuItem = true;
+
+            if ($menuItemVisibility['visibility'] == 1 && empty($menuItemVisibility['pages'])) {
+                $visibleMenuItem = false;
+            } elseif ($menuItemVisibility['pages']) {
+                $pages = drupal_strtolower($menuItemVisibility['pages']);
+
+                $path = drupal_strtolower(drupal_get_path_alias($_GET['q']));
+
+                $page_match = drupal_match_path($path, $pages);
+                if ($path != $_GET['q']) {
+                    $page_match = $page_match || drupal_match_path($_GET['q'], $pages);
+                }
+
+                $visibleMenuItem = !($menuItemVisibility['visibility'] xor $page_match);
+            }
+
+            if (!$visibleMenuItem) {
+                $item['access'] = false;
+            }
+        }
+    }
+}
+
+/**
+ * Implements hook_menu_link_update()
+ *
+ * Disabled as a hook until http://drupal.org/node/1013856 is fixed.
+ */
+function menu_item_visibility_menu_link_update($link) {
+    db_delete('menu_item_visibility_pages')
+        ->condition('mlid', $link['mlid'])
+        ->execute();
+
+    menu_item_visibility_menu_link_insert($link);
+}
+
+/**
+ * Implements hook_menu_link_insert()
+ */
+function menu_item_visibility_menu_link_insert($link) {
+    if (!empty($link['visibility']) || !empty($link['pages'])) {
+        db_insert('menu_item_visibility_pages')
+            ->fields(array(
+                'mlid' => $link['mlid'],
+                'visibility' => $link['visibility'],
+                'pages' => $link['pages'],
+            ))
+            ->execute();
+    }
+}
+
+/**
+ * Implements hook_menu_link_delete()
+ */
+function menu_item_visibility_menu_link_delete($link) {
+    db_delete('menu_item_visibility_pages')
+        ->condition('mlid', $link['mlid'])
+        ->execute();
+}
