@@ -44,3 +44,4 @@ function menu_item_visibility_schema() {
 
     return $schema;
 }
+

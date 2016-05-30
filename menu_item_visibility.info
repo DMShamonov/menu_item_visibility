@@ -7,3 +7,4 @@ php = 5.5
 dependencied[] = menu
 
 version = "7.x-1.0"
+

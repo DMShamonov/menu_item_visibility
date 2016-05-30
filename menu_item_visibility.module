@@ -170,3 +170,4 @@ function menu_item_visibility_menu_link_delete($link) {
         ->condition('mlid', $link['mlid'])
         ->execute();
 }
+
